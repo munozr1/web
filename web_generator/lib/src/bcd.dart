@@ -20,7 +20,7 @@ class BrowserCompatData {
   static bool isEventHandlerSupported(String name) =>
       _eventHandlers[name]?.any((bcd) => bcd.shouldGenerate) == true;
 
-  static BrowserCompatData read({required bool generateAll}) {
+  static BrowserCompatData read({Set<String>? filesToGenerate}) {
     final path =
         p.join('node_modules', '@mdn', 'browser-compat-data', 'data.json');
     final content = (fs.readFileSync(
@@ -46,7 +46,7 @@ class BrowserCompatData {
 
     for (final symbolName in api.symbolNames) {
       final apiInfo = api[symbolName] as Map<String, dynamic>;
-      final interface = BCDInterfaceStatus(symbolName, apiInfo, generateAll);
+      final interface = BCDInterfaceStatus(symbolName, apiInfo, filesToGenerate ?? {});
       if (interface._sourceFile.startsWith(globalsFilePrefix)) {
         // MDN stores global members e.g. `isSecureContext` in the same location
         // as the interfaces. These are not interfaces, but rather properties
@@ -67,7 +67,7 @@ class BrowserCompatData {
 
     globals.forEach((name, apiInfo) {
       for (final globalInterface in globalInterfaces) {
-        globalInterface.addProperty(name, apiInfo, generateAll);
+        globalInterface.addProperty(name, apiInfo, filesToGenerate ?? {});
       }
     });
 
@@ -76,20 +76,20 @@ class BrowserCompatData {
           interfaces,
           key: (i) => (i as BCDInterfaceStatus).name,
         ),
-        generateAll);
+        filesToGenerate ?? {});
   }
 
   final Map<String, BCDInterfaceStatus> interfaces;
 
   /// Whether to generate all the bindings regardless of property status.
-  bool generateAll = false;
+  final Set<String> filesToGenerate;
 
-  BrowserCompatData(this.interfaces, this.generateAll);
+  BrowserCompatData(this.interfaces, this.filesToGenerate);
 
   BCDInterfaceStatus? retrieveInterfaceFor(String name) => interfaces[name];
 
   bool shouldGenerateInterface(String name) =>
-      generateAll || (retrieveInterfaceFor(name)?.shouldGenerate ?? false);
+      filesToGenerate.contains(name) || (retrieveInterfaceFor(name)?.shouldGenerate ?? false);
 }
 
 class BCDInterfaceStatus extends BCDItem {
@@ -97,16 +97,16 @@ class BCDInterfaceStatus extends BCDItem {
 
   late final bool shouldGenerate;
 
-  BCDInterfaceStatus(super.name, super.json, bool generateAll) {
+  BCDInterfaceStatus(super.name, super.json, Set<String> filesToGenerate) {
     for (final symbolName in json.symbolNames) {
       addProperty(
-          symbolName, json[symbolName] as Map<String, dynamic>, generateAll);
+          symbolName, json[symbolName] as Map<String, dynamic>, filesToGenerate);
     }
-    shouldGenerate = generateAll || (standardTrack && !experimental);
+    shouldGenerate = filesToGenerate.contains(name) || (standardTrack && !experimental);
   }
 
   void addProperty(
-      String property, Map<String, dynamic> compat, bool generateAll) {
+      String property, Map<String, dynamic> compat, Set<String> filesToGenerate) {
     // Event compatibility data is stored as `<name_of_event>_event`. In order
     // to have compatibility data for `onX` properties, we need to replace such
     // property names. See https://github.com/mdn/browser-compat-data/blob/main/docs/data-guidelines/api.md#dom-events-eventname_event
@@ -115,12 +115,12 @@ class BCDInterfaceStatus extends BCDItem {
     const eventSuffix = '_event';
     if (property.endsWith(eventSuffix)) {
       property = 'on${property.replaceAll(eventSuffix, '')}';
-      status = BCDPropertyStatus(property, compat, this, generateAll);
+      status = BCDPropertyStatus(property, compat, this, filesToGenerate);
       BrowserCompatData._eventHandlers
           .putIfAbsent(property, () => {})
           .add(status);
     } else {
-      status = BCDPropertyStatus(property, compat, this, generateAll);
+      status = BCDPropertyStatus(property, compat, this, filesToGenerate);
     }
     _properties[property] = status;
   }
@@ -136,8 +136,8 @@ class BCDPropertyStatus extends BCDItem {
 
   late final bool shouldGenerate;
 
-  BCDPropertyStatus(super.name, super.json, this.parent, bool generateAll) {
-    shouldGenerate = generateAll || (standardTrack && !experimental);
+  BCDPropertyStatus(super.name, super.json, this.parent, Set<String> filesToGenerate) {
+    shouldGenerate = filesToGenerate.contains(name) || (standardTrack && !experimental);
   }
 }
 

@@ -26,16 +26,20 @@ void main(List<String> args) async {
   }
   final ArgResults argResult;
   argResult = _parser.parse(args);
+  Set<String>? filesToGenerate;
+  if (argResult['files'] != null) {
+    filesToGenerate = Set<String>.from(argResult['files'] as List<String>);
+  }
   await _generateAndWriteBindings(
     outputDirectory: argResult['output-directory'] as String,
-    generateAll: argResult['generate-all'] as bool,
+    filesToGenerate: filesToGenerate,
     languageVersion: Version.parse(languageVersionString),
   );
 }
 
 Future<void> _generateAndWriteBindings({
   required String outputDirectory,
-  required bool generateAll,
+  required Set<String>? filesToGenerate,
   required Version languageVersion,
 }) async {
   const librarySubDir = 'dom';
@@ -43,7 +47,7 @@ Future<void> _generateAndWriteBindings({
   ensureDirectoryExists('$outputDirectory/$librarySubDir');
 
   final bindings = await generateBindings(packageRoot, librarySubDir,
-      generateAll: generateAll);
+      filesToGenerate: filesToGenerate);
   for (var entry in bindings.entries) {
     final libraryPath = entry.key;
     final library = entry.value;
@@ -71,4 +75,5 @@ final _parser = ArgParser()
   ..addFlag('generate-all',
       negatable: false,
       help: 'Generate bindings for all IDL definitions, including experimental '
-          'and non-standard APIs.');
+          'and non-standard APIs.')
+  ..addMultiOption('files', abbr: 'f', help: 'List of specific IDL files to process');

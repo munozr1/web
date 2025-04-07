@@ -1,0 +1,7 @@
+[
+    "web/lib/src/dom/accelerometer.dart",
+    "web/lib/src/dom/ambient_light.dart",
+    "web/lib/src/dom/anchors.dart",
+    "web/lib/src/dom/angle_instanced_arrays.dart",
+    "web/lib/src/dom/attribution_reporting_api.dart"
+] 

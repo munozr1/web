@@ -595,7 +595,7 @@ class _PartialInterfacelike {
   /// Given a [memberName] and whether it [isStatic], return whether it is a
   /// member that should be emitted according to the compat data.
   bool _shouldGenerateMember(String memberName, {bool isStatic = false}) {
-    if (Translator.instance!.browserCompatData.generateAll) return true;
+    if (Translator.instance!.filesToGenerate.isEmpty) return true;
     // Compat data only exists for interfaces and namespaces. Mixins and
     // dictionaries should always generate their members.
     if (type != 'interface' && type != 'namespace') return true;
@@ -649,10 +649,14 @@ class _MemberName {
 }
 
 class Translator {
+  /// Singleton so that various helper methods can access info about the AST.
+  static Translator? instance;
+
   final String packageRoot;
   final String _librarySubDir;
   final List<String> _cssStyleDeclarations;
   final Map<String, Set<String>> _elementTagMap;
+  final Set<String> filesToGenerate;
 
   final _libraries = <String, _Library>{};
   final _typeToDeclaration = <String, idl.Node>{};
@@ -666,15 +670,13 @@ class Translator {
   late DocProvider docProvider;
   late BrowserCompatData browserCompatData;
 
-  /// Singleton so that various helper methods can access info about the AST.
-  static Translator? instance;
-
   Translator(this.packageRoot, this._librarySubDir, this._cssStyleDeclarations,
       this._elementTagMap,
-      {required bool generateAll}) {
+      {Set<String>? filesToGenerate})
+      : this.filesToGenerate = filesToGenerate ?? {} {
     instance = this;
     docProvider = DocProvider.create();
-    browserCompatData = BrowserCompatData.read(generateAll: generateAll);
+    browserCompatData = BrowserCompatData.read(filesToGenerate: filesToGenerate);
   }
 
   void _addOrUpdateInterfaceLike(idl.Interfacelike interfacelike) {
@@ -711,7 +713,7 @@ class Translator {
             markTypeAsUsed(name);
             break;
           case 'dictionary':
-            if (Translator.instance!.browserCompatData.generateAll) {
+            if (Translator.instance!.filesToGenerate.isEmpty) {
               markTypeAsUsed(name);
             }
             break;
@@ -784,7 +786,7 @@ class Translator {
         // Interfaces and namespaces can only be marked as used depending on
         // their compat data.
         final name = (decl as idl.Interfacelike).name;
-        if (browserCompatData.shouldGenerateInterface(name)) {
+        if (filesToGenerate.isEmpty || browserCompatData.shouldGenerateInterface(name)) {
           _usedTypes.add(decl);
           _combineInterfacelikes(name);
           return true;
@@ -796,7 +798,7 @@ class Translator {
         // https://github.com/mdn/browser-compat-data/blob/main/docs/data-guidelines/api.md#namespaces
         final namespace = decl as idl.Interfacelike;
         final name = namespace.name;
-        if (browserCompatData.shouldGenerateInterface(name) ||
+        if (filesToGenerate.isEmpty || browserCompatData.shouldGenerateInterface(name) ||
             namespace.members.toDart
                 .every((member) => member.type == 'const')) {
           _usedTypes.add(decl);
